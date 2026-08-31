@@ -1,0 +1,41 @@
+{
+  "days_lookback": 1,
+  "max_items_per_source": 6,
+  "sources": [
+    {
+      "name": "教务部·通知公告",
+      "type": "html",
+      "url": "https://dean.pku.edu.cn/web/notice.php",
+      "base_url": "https://dean.pku.edu.cn/web/",
+      "url_contains": "notice_details",
+      "title_min_len": 8,
+      "max_items": 6
+    },
+    {
+      "name": "学工部·资讯通知",
+      "type": "html",
+      "url": "http://xgb.pku.edu.cn/sylm/zxtz/index.htm",
+      "base_url": "http://xgb.pku.edu.cn/sylm/zxtz/",
+      "url_contains": ".htm",
+      "exclude": "index.htm",
+      "title_min_len": 10,
+      "max_items": 6
+    },
+    {
+      "name": "北大新闻网·综合新闻",
+      "type": "html",
+      "url": "https://news.pku.edu.cn/xwzh/",
+      "base_url": "https://news.pku.edu.cn/xwzh/",
+      "url_contains": ".htm",
+      "title_min_len": 8,
+      "max_items": 6
+    },
+    {
+      "name": "北大官微（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/你的biz/你的album_id",
+      "max_items": 6,
+      "enabled": false
+    }
+  ]
+}
