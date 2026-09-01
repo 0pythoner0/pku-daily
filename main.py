@@ -8,7 +8,9 @@
   3. 交给 DeepSeek 生成一份结构化的「今日北大日报」
   4. 通过 PushPlus 推送到你的手机微信
 
-注：不做历史去重、也不限制条数——所有符合"近 N 天 + 大一相关"的文章都会推送到日报。
+注：不做"跨天历史去重"、也不限制条数——同一通知隔天仍会出现；
+但会在"同一次运行内按标题去重"，避免一条通知因出现在多个栏目（如工学院注册通知同时挂在"本科生通知"和"学院公告"）而在日报里重复列出。
+是否开启同次运行去重，由 sources.json 顶层的 dedup_by_title 控制（默认开启）。
 
 这套代码零基础也能看懂：每个函数上方都写了它在做什么。
 你只需要改两个地方：sources.json（信息源）和 GitHub 上的密钥（Secrets）。
@@ -362,6 +364,10 @@ def main():
             # ① 大一新生相关性：研究生/教职工/毕业生/招标等强信号过滤
             if not is_freshman_relevant(it["title"]):
                 continue
+            # ①-b 部分源页面日期经常缺失（如心理中心），若设了 require_date，
+            #      只保留能解析出日期的条目，避免旧通知每天重复刷屏
+            if src.get("require_date") and not it["date"]:
+                continue
             # ② 日期窗口：只保留近 days_lookback 天的内容（无日期的保守保留）
             if not within_window(it["date"], today, days_lookback):
                 continue
@@ -371,8 +377,27 @@ def main():
         )
         all_items.extend(cand)
 
-    # 不做历史去重：所有符合"近 N 天 + 大一相关"的文章都推送
-    log_lines.append(f"符合要求（待推送）：{len(all_items)} 条")
+    # 同次运行内按标题去重（默认开启，可由 sources.json 的 dedup_by_title 关闭）：
+    # 同一条通知可能同时挂在多个栏目（如工学院的"本科生通知"和"学院公告"），
+    # 只保留首次出现的一条，避免日报里重复列出。注意：这不影响"跨天历史去重"——
+    # 历史去重仍不做，所以同一通知隔天还会再出现。
+    dedup_by_title = bool(cfg.get("dedup_by_title", True))
+    if dedup_by_title:
+        seen_titles = set()
+        deduped_items = []
+        dup_count = 0
+        for it in all_items:
+            key = it.get("title", "").strip()
+            if key in seen_titles:
+                dup_count += 1
+                continue
+            seen_titles.add(key)
+            deduped_items.append(it)
+        if dup_count:
+            print(f"🔁 同次运行内按标题去重：跳过 {dup_count} 条重复")
+        all_items = deduped_items
+
+    log_lines.append(f"符合要求（待推送）：{len(all_items)} 条" + (f"（已去重 {dup_count} 条）" if dedup_by_title and dup_count else ""))
 
     weather = fetch_weather()
     log_lines.append(f"天气：{weather or '获取失败'}")

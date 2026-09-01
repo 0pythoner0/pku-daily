@@ -1,6 +1,5 @@
 {
-  "days_lookback": 1,
-  "max_items_per_source": 6,
+  "days_lookback": 2,
   "sources": [
     {
       "name": "教务部·通知公告",
@@ -8,8 +7,7 @@
       "url": "https://dean.pku.edu.cn/web/notice.php",
       "base_url": "https://dean.pku.edu.cn/web/",
       "url_contains": "notice_details",
-      "title_min_len": 8,
-      "max_items": 6
+      "title_min_len": 8
     },
     {
       "name": "学工部·资讯通知",
@@ -18,8 +16,7 @@
       "base_url": "http://xgb.pku.edu.cn/sylm/zxtz/",
       "url_contains": ".htm",
       "exclude": "index.htm",
-      "title_min_len": 10,
-      "max_items": 6
+      "title_min_len": 10
     },
     {
       "name": "北大新闻网·综合新闻",
@@ -27,15 +24,175 @@
       "url": "https://news.pku.edu.cn/xwzh/",
       "base_url": "https://news.pku.edu.cn/xwzh/",
       "url_contains": ".htm",
-      "title_min_len": 8,
-      "max_items": 6
+      "title_min_len": 8
+    },
+    {
+      "name": "计算中心·通知公告",
+      "type": "html",
+      "url": "https://cc.pku.edu.cn/notice.html",
+      "base_url": "https://cc.pku.edu.cn",
+      "url_contains": "notice",
+      "title_min_len": 8
+    },
+    {
+      "name": "工学院·本科生通知",
+      "type": "html",
+      "url": "https://www.coe.pku.edu.cn/undergraduates/notice.html",
+      "base_url": "https://www.coe.pku.edu.cn",
+      "url_contains": "undergraduates/notice",
+      "title_min_len": 10
+    },
+    {
+      "name": "工学院·学院公告",
+      "type": "html",
+      "url": "https://www.coe.pku.edu.cn/announcements/college_notice.html",
+      "base_url": "https://www.coe.pku.edu.cn",
+      "url_contains": "announcements/college/",
+      "title_min_len": 8
+    },
+    {
+      "name": "总务部·后勤动态",
+      "type": "html",
+      "url": "https://zwb.pku.edu.cn/",
+      "base_url": "https://zwb.pku.edu.cn",
+      "url_contains": "zwdt/xwdt",
+      "title_min_len": 10
+    },
+    {
+      "name": "力学与工程科学学院·通知",
+      "type": "html",
+      "url": "https://mech.pku.edu.cn/index.htm",
+      "base_url": "https://mech.pku.edu.cn",
+      "url_contains": "tzgg",
+      "title_min_len": 10
+    },
+    {
+      "name": "学工部·心理健康教育与咨询中心",
+      "type": "html",
+      "url": "http://counseling.pku.edu.cn/",
+      "base_url": "http://counseling.pku.edu.cn/",
+      "url_contains": "zxtz/",
+      "title_min_len": 10,
+      "require_date": true
+    },
+    {
+      "name": "北大新闻网·信息预告",
+      "type": "html",
+      "url": "https://news.pku.edu.cn/wyyd/xxyg/index.htm",
+      "base_url": "https://news.pku.edu.cn/wyyd/xxyg/",
+      "url_contains": ".htm",
+      "exclude": "../",
+      "title_min_len": 12
+    },
+    {
+      "name": "工学院·通知发布（本科生学院）",
+      "type": "html",
+      "url": "https://www.coe.pku.edu.cn/student/notice.html",
+      "base_url": "https://www.coe.pku.edu.cn",
+      "url_contains": "student/notice/",
+      "title_min_len": 10
+    },
+    {
+      "name": "工学院·讲座信息",
+      "type": "html",
+      "url": "https://www.coe.pku.edu.cn/research/report.html",
+      "base_url": "https://www.coe.pku.edu.cn",
+      "url_contains": "research/report/",
+      "title_min_len": 10
+    },
+    {
+      "name": "总务部·相关通知",
+      "type": "html",
+      "url": "https://zwb.pku.edu.cn/zbtb/xgtz/index.htm",
+      "base_url": "https://zwb.pku.edu.cn/zbtb/xgtz/",
+      "url_contains": ".htm",
+      "exclude": "../",
+      "title_min_len": 10
+    },
+    {
+      "name": "力学与工程科学学院·学术活动（讲座）",
+      "type": "html",
+      "url": "https://mech.pku.edu.cn/kxyj/xshd/index.htm",
+      "base_url": "https://mech.pku.edu.cn/kxyj/xshd/",
+      "url_contains": ".htm",
+      "exclude": "../",
+      "title_min_len": 10
+    },
+    {
+      "name": "力学与工程科学学院·通知发布（学生事务）",
+      "type": "html",
+      "url": "https://mech.pku.edu.cn/xstd/tzfb/index.htm",
+      "base_url": "https://mech.pku.edu.cn/xstd/tzfb/",
+      "url_contains": ".htm",
+      "exclude": "../",
+      "title_min_len": 10
     },
     {
       "name": "北大官微（公众号）",
       "type": "rss",
-      "url": "https://rsshub.app/wechat/mp/msgalbum/你的biz/你的album_id",
-      "max_items": 6,
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "北京大学教务部（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "北京大学百周年纪念讲堂（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "青春北京（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "未名校园集市（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "为名小喇叭（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "P大CoE教务（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "清北情报站（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "工映青春（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "北大新青年（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
+      "enabled": false
+    },
+    {
+      "name": "北大餐饮中心官方资讯（公众号）",
+      "type": "rss",
+      "url": "https://rsshub.app/wechat/mp/msgalbum/替换为biz/替换为album_id",
       "enabled": false
     }
-  ]
+  ],
+  "dedup_by_title": true
 }
