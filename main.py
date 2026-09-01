@@ -4,9 +4,11 @@
 ================================
 功能：
   1. 从北大官网通知页（HTML 列表）和公众号/新闻（RSS）抓取近期内容
-  2. 与 history.json 里的历史链接比对，只保留"没推过的新内容"
+  2. 按"近 N 天 + 仅大一新生相关"筛选，把符合要求的文章全部保留
   3. 交给 DeepSeek 生成一份结构化的「今日北大日报」
   4. 通过 PushPlus 推送到你的手机微信
+
+注：不做历史去重、也不限制条数——所有符合"近 N 天 + 大一相关"的文章都会推送到日报。
 
 这套代码零基础也能看懂：每个函数上方都写了它在做什么。
 你只需要改两个地方：sources.json（信息源）和 GitHub 上的密钥（Secrets）。
@@ -25,13 +27,9 @@ from bs4 import BeautifulSoup
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SOURCES_FILE = os.path.join(BASE_DIR, "sources.json")
-HISTORY_FILE = os.path.join(BASE_DIR, "history.json")
 
-# 只报"最近 N 天"的内容（防旧文章刷屏）
+# 只报"最近 N 天"的内容（具体天数在 sources.json 的 days_lookback 里设置）
 DAYS_LOOKBACK = 1
-
-# 每个源最多取前几条（避免某一天集中爆发刷爆日报）
-MAX_PER_SOURCE = 6
 
 HEADERS = {
     # 伪装成普通浏览器，有些网站会拦截脚本请求
@@ -63,6 +61,10 @@ def extract_date(text):
     text = text.replace(" ", "")
     # 优先匹配 2026-07-16 或 2026/07/16 或 2026年7月16日
     m = re.search(r"(20\d{2})[年\-/.](\d{1,2})[月\-/.](\d{1,2})", text)
+    if m:
+        return "%s-%02d-%02d" % (m.group(1), int(m.group(2)), int(m.group(3)))
+    # 兼容 "202607.06" 这种紧凑写法（计算中心通知页常用）
+    m = re.search(r"(20\d{2})(\d{2})\.(\d{2})", text)
     if m:
         return "%s-%02d-%02d" % (m.group(1), int(m.group(2)), int(m.group(3)))
     # 再匹配 07-16 2026 这种"月-日 年"的写法
@@ -114,12 +116,12 @@ def fetch_html_source(src):
             from urllib.parse import urljoin
             full = urljoin(base, href)
 
-        # 日期优先从链接文字里找，找不到就向上找最多 3 级父节点
-        # （有些网站把日期放在标题外面好几层，只找一层会漏掉）
+        # 日期优先从链接文字里找，找不到就向上找最多 5 级父节点
+        # （有些网站把日期放在标题外面好几层，比如北大新闻网的日期在第 3~5 级父节点）
         date_text = extract_date(title)
         if not date_text:
             node = a.parent
-            for _ in range(3):
+            for _ in range(5):
                 if node is None:
                     break
                 date_text = extract_date(node.get_text(" ", strip=True))
@@ -129,9 +131,8 @@ def fetch_html_source(src):
 
         items.append({"title": title, "url": full, "date": date_text, "source": name})
 
-    # 按页面出现顺序，最新的通常在最前面，只保留前 N 条
-    items = items[: src.get("max_items", MAX_PER_SOURCE)]
-    print(f"✅ [{name}] 抓到 {len(items)} 条")
+    # 不做条数限制：所有抓到的候选都返回，后续由"近 N 天 + 大一相关"统一筛选
+    print(f"✅ [{name}] 抓到 {len(items)} 条候选")
     return items
 
 
@@ -147,7 +148,7 @@ def fetch_rss_source(src):
         if feed.bozo and not feed.entries:
             print(f"⚠️  RSS 解析异常 [{name}]：{feed.bozo_exception}")
             return items
-        for e in feed.entries[: src.get("max_items", MAX_PER_SOURCE)]:
+        for e in feed.entries:
             title = e.get("title", "").strip()
             link = e.get("link", "")
             if not title or not link:
@@ -186,25 +187,39 @@ def fetch_weather(city="Beijing"):
         return ""
 
 
-# ---------------------------- 历史去重 ----------------------------
+# ---------------------------- 大一新生相关性筛选 ----------------------------
+# 命中下面这些"强信号"的标题，判定为与本科大一新生无关（研究生/教职工/毕业生/招标等），
+# 直接过滤掉，避免日报里塞满"博士生论坛""教师招聘""工程招标"之类的内容。
+# 说明：这里只做关键词粗筛（即使没配 AI 也能生效）；配了 DeepSeek 后，
+# 还会在摘要环节再做一轮语义筛选，双重保险。
+STRONG_SIGNALS = [
+    "研究生", "硕士", "博士", "硕博", "推免", "保研", "考研", "博士后", "博导", "导师",
+    "教工", "教职工", "离退休", "校友", "师资", "人才招聘", "岗位招聘", "教师招聘", "招聘启事",
+    "毕业", "毕业生", "毕业典礼", "选调", "公务员", "就业", "派遣", "落户",
+    "招标", "中标", "成交公告", "采购", "基建", "投标", "比选", "工程监理",
+]
 
-def load_history():
-    """读取已经推过的链接集合，用于去重。"""
-    if not os.path.exists(HISTORY_FILE):
-        return set()
+
+def is_freshman_relevant(title):
+    """判断一条通知是否与本科大一新生相关。命中强信号就过滤，否则保留。"""
+    return not any(sig in title for sig in STRONG_SIGNALS)
+
+
+def within_window(date_str, today, days):
+    """判断日期是否在『最近 days 天』窗口内。
+    - 有日期且超窗口 → False（太久远的旧文不推）
+    - 没有日期（很多官网列表页不写日期）→ True（保守保留，避免误杀）
+    - 未来日期（解析异常）→ 也保留，避免误杀
+    """
+    if not date_str:
+        return True
     try:
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            return set(json.load(f))
+        d = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        today_d = datetime.datetime.strptime(today, "%Y-%m-%d").date()
     except Exception:
-        return set()
-
-
-def save_history(urls):
-    """把本次新链接追加进历史，最多保留 3000 条防止文件无限膨胀。"""
-    history = load_history()
-    history.update(urls)
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(list(history)[-3000:], f, ensure_ascii=False, indent=2)
+        return True
+    delta = (today_d - d).days
+    return -1 <= delta <= days
 
 
 # ---------------------------- 组装日报（无 AI 兜底版） ----------------------------
@@ -241,8 +256,9 @@ SYSTEM_PROMPT = (
     "1. 用简体中文，语气亲切但不啰嗦；\n"
     "2. 把内容按板块归类，例如【重要通知】【课程与考试】【讲座与活动】【就业与实习】【其他】；\n"
     "3. 每条用一句话概括要点，并在后面保留原文链接（markdown 链接格式）；\n"
-    "4. 如果某条明显是旧的或无关的（如往年的公示），可以忽略；\n"
-    "5. 结尾用一两句话给新生一个贴心小提示（比如注意截止时间）。\n"
+    "4. 严格面向本科大一新生：忽略研究生、博士生、教职工、毕业生专属的内容（如推免、保研、博士招生、教师招聘、毕业典礼、工程招标、中标公告等）；\n"
+    "5. 如果某条明显是旧的或无关的（如往年的公示），可以忽略；\n"
+    "6. 结尾用一两句话给新生一个贴心小提示（比如注意截止时间）。\n"
     "直接输出 markdown 格式的简报正文，不要输出多余的解释。"
 )
 
@@ -313,13 +329,24 @@ def push_wechat(title, content):
 def main():
     now = datetime.datetime.now()
     today = now.strftime("%Y-%m-%d")
+
+    # 从 sources.json 读取"近几天"窗口（默认 2 天）
+    try:
+        with open(SOURCES_FILE, encoding="utf-8") as f:
+            cfg = json.load(f)
+        days_lookback = int(cfg.get("days_lookback", 2))
+    except Exception:
+        days_lookback = 2
+
     print(f"===== 北大日报 · {today} 开始生成（{now:%H:%M:%S}）=====")
 
     # 运行日志：每天把运行结果写进 last_run.txt 并提交回仓库，
     # 第二天没收到推送时，打开仓库里的这个文件就知道任务到底跑没跑、卡在哪一步。
-    log_lines = [f"运行时间（北京时间）：{now:%Y-%m-%d %H:%M:%S}"]
+    log_lines = [
+        f"运行时间（北京时间）：{now:%Y-%m-%d %H:%M:%S}",
+        f"筛选窗口：近 {days_lookback} 天 + 仅大一新生相关",
+    ]
 
-    history = load_history()
     all_items = []
 
     for src in load_sources():
@@ -330,15 +357,22 @@ def main():
             got = fetch_rss_source(src)
         else:
             got = fetch_html_source(src)
-        log_lines.append(f"信息源 [{src['name']}]：抓到 {len(got)} 条")
+        cand = []
         for it in got:
-            # 去重：历史里出现过的链接不再报
-            if it["url"] not in history:
-                all_items.append(it)
+            # ① 大一新生相关性：研究生/教职工/毕业生/招标等强信号过滤
+            if not is_freshman_relevant(it["title"]):
+                continue
+            # ② 日期窗口：只保留近 days_lookback 天的内容（无日期的保守保留）
+            if not within_window(it["date"], today, days_lookback):
+                continue
+            cand.append(it)
+        log_lines.append(
+            f"信息源 [{src['name']}]：抓到 {len(got)} 条 → 符合(近{days_lookback}天+新生相关) {len(cand)} 条"
+        )
+        all_items.extend(cand)
 
-    # 只保留"今天新增"的那批链接，稍后写回历史
-    new_urls = [it["url"] for it in all_items]
-    log_lines.append(f"去重后新增：{len(all_items)} 条")
+    # 不做历史去重：所有符合"近 N 天 + 大一相关"的文章都推送
+    log_lines.append(f"符合要求（待推送）：{len(all_items)} 条")
 
     weather = fetch_weather()
     log_lines.append(f"天气：{weather or '获取失败'}")
@@ -349,15 +383,12 @@ def main():
     push_result = push_wechat(f"📰 北大日报 · {today}（{now:%H:%M} 生成）", digest)
     log_lines.append(f"推送结果：{push_result}")
 
-    # 把本次推过的链接记下来，下次不再重复
-    save_history(new_urls)
-
     try:
         with open(os.path.join(BASE_DIR, "last_run.txt"), "w", encoding="utf-8") as f:
             f.write("\n".join(log_lines) + "\n")
     except Exception as e:
         print(f"⚠️  写入 last_run.txt 失败：{e}")
-    print(f"===== 完成：本次新增 {len(all_items)} 条 =====")
+    print(f"===== 完成：本次推送 {len(all_items)} 条 =====")
 
 
 if __name__ == "__main__":
