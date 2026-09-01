@@ -280,14 +280,15 @@ def summarize_with_ai(raw_digest, today):
 # ---------------------------- PushPlus 推送 ----------------------------
 
 def push_wechat(title, content):
-    """通过 PushPlus 把内容推到微信。token 存在 GitHub Secrets 里。"""
+    """通过 PushPlus 把内容推到微信。token 存在 GitHub Secrets 里。
+    返回一个结果字符串，会写进 last_run.txt，方便第二天排查推送有没有成功。"""
     token = os.environ.get("PUSHPLUS_TOKEN")
     if not token:
         print("ℹ️  未配置 PUSHPLUS_TOKEN，跳过推送（内容已打印在上方）。")
         print("-" * 60)
         print(content)
         print("-" * 60)
-        return
+        return "未配置 PUSHPLUS_TOKEN（推送被跳过）"
 
     try:
         r = requests.post(
@@ -298,17 +299,25 @@ def push_wechat(title, content):
         result = r.json()
         if result.get("code") == 200:
             print("✅ 已推送到微信！")
+            return "推送成功 ✅"
         else:
             print(f"⚠️  推送返回异常：{result}")
+            return f"推送返回异常：{result}"
     except Exception as e:
         print(f"⚠️  推送失败：{e}")
+        return f"推送失败：{e}"
 
 
 # ---------------------------- 主流程 ----------------------------
 
 def main():
-    today = (datetime.date.today()).strftime("%Y-%m-%d")
-    print(f"===== 北大日报 · {today} 开始生成 =====")
+    now = datetime.datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    print(f"===== 北大日报 · {today} 开始生成（{now:%H:%M:%S}）=====")
+
+    # 运行日志：每天把运行结果写进 last_run.txt 并提交回仓库，
+    # 第二天没收到推送时，打开仓库里的这个文件就知道任务到底跑没跑、卡在哪一步。
+    log_lines = [f"运行时间（北京时间）：{now:%Y-%m-%d %H:%M:%S}"]
 
     history = load_history()
     all_items = []
@@ -321,6 +330,7 @@ def main():
             got = fetch_rss_source(src)
         else:
             got = fetch_html_source(src)
+        log_lines.append(f"信息源 [{src['name']}]：抓到 {len(got)} 条")
         for it in got:
             # 去重：历史里出现过的链接不再报
             if it["url"] not in history:
@@ -328,15 +338,25 @@ def main():
 
     # 只保留"今天新增"的那批链接，稍后写回历史
     new_urls = [it["url"] for it in all_items]
+    log_lines.append(f"去重后新增：{len(all_items)} 条")
 
     weather = fetch_weather()
+    log_lines.append(f"天气：{weather or '获取失败'}")
+
     raw = build_raw_digest(all_items, weather, today)
     digest = summarize_with_ai(raw, today)
 
-    push_wechat(f"📰 北大日报 · {today}", digest)
+    push_result = push_wechat(f"📰 北大日报 · {today}（{now:%H:%M} 生成）", digest)
+    log_lines.append(f"推送结果：{push_result}")
 
     # 把本次推过的链接记下来，下次不再重复
     save_history(new_urls)
+
+    try:
+        with open(os.path.join(BASE_DIR, "last_run.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join(log_lines) + "\n")
+    except Exception as e:
+        print(f"⚠️  写入 last_run.txt 失败：{e}")
     print(f"===== 完成：本次新增 {len(all_items)} 条 =====")
 
 
