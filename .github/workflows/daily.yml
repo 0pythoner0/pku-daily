@@ -8,7 +8,7 @@ on:
   workflow_dispatch: {}   # 允许在网页上手动点一下"运行"来测试
 
 permissions:
-  contents: write          # 允许机器人把 history.json 提交回仓库
+  contents: write          # 允许机器人把 last_run.txt 运行日志提交回仓库
 
 jobs:
   daily:
@@ -31,10 +31,10 @@ jobs:
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
         run: python main.py
 
-      - name: 保存去重历史
+      - name: 保存运行日志
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add history.json last_run.txt
-          git diff --cached --quiet || git commit -m "chore: update history $(date +%F)"
+          git add last_run.txt
+          git diff --cached --quiet || git commit -m "chore: update run log $(date +%F)"
           git push
