@@ -329,7 +329,11 @@ def push_wechat(title, content):
 # ---------------------------- 主流程 ----------------------------
 
 def main():
-    now = datetime.datetime.now()
+    # 强制使用北京时间（UTC+8），因为 GitHub Actions 服务器默认是 UTC 时区。
+    # 不用 datetime.now()，否则标题会显示"04:25 生成"（实际是北京时间 12:25），
+    # 且"近 N 天窗口"的日期判断在跨午夜时会偏移一天。
+    beijing_tz = datetime.timezone(datetime.timedelta(hours=8))
+    now = datetime.datetime.now(beijing_tz)
     today = now.strftime("%Y-%m-%d")
 
     # 从 sources.json 读取"近几天"窗口（默认 2 天）
